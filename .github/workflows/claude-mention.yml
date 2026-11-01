@@ -166,12 +166,9 @@ jobs:
           ANTHROPIC_BASE_URL: ${{ inputs.gateway-url }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
         with:
-          # Gateway auth: ANTHROPIC_AUTH_TOKEN (in settings.env below) sends
-          # Authorization: Bearer without switching Claude Code into its
-          # consumer-OAuth mode, which claude_code_oauth_token would. The
-          # action's environment check only accepts anthropic_api_key, so the
-          # key is passed there too (sent as x-api-key to the same host).
-          anthropic_api_key: ${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}
+          # The gateway takes its service key as Authorization: Bearer, the
+          # wire shape the action's OAuth-token input produces.
+          claude_code_oauth_token: ${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}
           # The job token: no OIDC exchange and no Claude App token.
           github_token: ${{ github.token }}
           classify_inline_comments: 'false'
@@ -185,7 +182,6 @@ jobs:
                 "disableBypassPermissionsMode": true
               },
               "env": {
-                "ANTHROPIC_AUTH_TOKEN": "${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}",
                 "API_TIMEOUT_MS": "120000",
                 "CLAUDE_CODE_MAX_RETRIES": "2"
               }
