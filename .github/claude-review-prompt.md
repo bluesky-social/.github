@@ -22,7 +22,8 @@ Things to look for, in rough order of importance:
 - **Claude reusables' hardening.** `claude-review.yml` and
   `claude-mention.yml` must stay in agent mode (never `track_progress`),
   keep built-in tools to Read/Grep/Glob via `--tools`, keep the
-  allowed-tool list to the inline-comment tool and the two CI read tools,
+  allowed-tool list to the inline-comment tool and the three CI read
+  tools (`get_ci_status`, `get_workflow_run_details`, `download_job_log`),
   keep Bash/Edit/Write/MultiEdit/NotebookEdit/WebFetch/WebSearch
   disallowed, keep `.git/` and reads outside the working directories
   blocked, use the job token with no `id-token`, and post model output only
