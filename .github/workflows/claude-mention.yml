@@ -160,17 +160,36 @@ jobs:
       - name: Claude
         id: claude
         uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
+        # Below the job timeout so a hang fails this step visibly.
+        timeout-minutes: 12
         env:
           ANTHROPIC_BASE_URL: ${{ inputs.gateway-url }}
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
         with:
-          # The gateway takes its service key as Authorization: Bearer, the
-          # wire shape the action's OAuth-token input produces.
-          claude_code_oauth_token: ${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}
+          # Gateway auth: ANTHROPIC_AUTH_TOKEN (in settings.env below) sends
+          # Authorization: Bearer without switching Claude Code into its
+          # consumer-OAuth mode, which claude_code_oauth_token would. The
+          # action's environment check only accepts anthropic_api_key, so the
+          # key is passed there too (sent as x-api-key to the same host).
+          anthropic_api_key: ${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}
           # The job token: no OIDC exchange and no Claude App token.
           github_token: ${{ github.token }}
           classify_inline_comments: 'false'
-          settings: '{"permissions": {"blockReadsOutsideWorkingDirectories": true, "disableBypassPermissionsMode": true}}'
+          # Claude Code applies no default request timeout; without one a
+          # gateway that accepts and never answers hangs until the job is
+          # cancelled and posts nothing.
+          settings: |
+            {
+              "permissions": {
+                "blockReadsOutsideWorkingDirectories": true,
+                "disableBypassPermissionsMode": true
+              },
+              "env": {
+                "ANTHROPIC_AUTH_TOKEN": "${{ secrets.AGENT_GATEWAY_CLAUDE_GH_REVIEW_KEY }}",
+                "API_TIMEOUT_MS": "120000",
+                "CLAUDE_CODE_MAX_RETRIES": "2"
+              }
+            }
           claude_args: |
             --model "${{ inputs.model }}"
             --tools "Read,Grep,Glob"
