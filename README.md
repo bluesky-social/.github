@@ -200,11 +200,11 @@ and bot comments are skipped.
 **What it cannot do.**
 
 - Run commands, edit files, use the web, or start other agents. Its
-  built-in tools are limited to Read, Grep, and Glob, plus ToolSearch, which
-  only loads tool schemas. Bash, Edit, Write, MultiEdit, NotebookEdit,
-  WebFetch, and WebSearch are also denied by name. The workflow runs
-  claude-code-action in agent mode only, never tag mode, so no git tools or
-  branch checkout are added.
+  built-in tools are limited to Read, Grep, and Glob. Bash, Edit, Write,
+  MultiEdit, NotebookEdit, WebFetch, and WebSearch are also denied by name.
+  Any MCP tool other than the three listed above is refused. The workflow
+  runs claude-code-action in agent mode only, never tag mode, so no git
+  tools or branch checkout are added.
 - Read outside the working directories. File reads elsewhere are refused,
   and `.git/` and `/proc` are denied explicitly. claude-code-action writes the
   job token into `.git/config` for its own use, and the process environment

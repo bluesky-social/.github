@@ -21,7 +21,7 @@ Things to look for, in rough order of importance:
   token, or a model holding one.
 - **Claude reusables' hardening.** `claude-review.yml` and
   `claude-mention.yml` must stay in agent mode (never `track_progress`),
-  keep built-in tools to Read/Grep/Glob/ToolSearch via `--tools`, keep the
+  keep built-in tools to Read/Grep/Glob via `--tools`, keep the
   allowed-tool list to the inline-comment tool and the two CI read tools,
   keep Bash/Edit/Write/MultiEdit/NotebookEdit/WebFetch/WebSearch
   disallowed, keep `.git/` and reads outside the working directories
