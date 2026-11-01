@@ -57,7 +57,7 @@ not go back to per-repo copies without revisiting those points.
 
 Keep the hardening intact. Any of these is a security change, not a tweak:
 enabling `track_progress` or tag mode; adding a built-in tool to `--tools`
-(Read, Grep, Glob, ToolSearch); widening `--allowedTools` beyond the
+(Read, Grep, Glob); widening `--allowedTools` beyond the
 inline-comment tool and the two CI read tools; dropping a `--disallowedTools`
 entry or the `.git`/`/proc` read denials; turning off
 `blockReadsOutsideWorkingDirectories`; adding `id-token` or a broader
