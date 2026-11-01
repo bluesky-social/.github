@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Opt-in for pnpm repos, on top of default. Consumed as local>bluesky-social/.github//renovate/pnpm#v1. Only for repos where pnpm itself enforces the cooldown: pnpm >= 11 (dependency build scripts blocked unless listed in allowBuilds), minimumReleaseAge: 4320 in pnpm-workspace.yaml (applies to transitive dependencies too), and packageManager pinned in package.json.",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": [
+      "before 9am on monday"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Renovate's security PRs only bump dependencies declared in package.json; transitive fixes land through the weekly lock file refresh. fix: so it releases.",
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "pnpm >= 11 with minimumReleaseAge meets the bar for trusting npm minors: no dependency install scripts by default, and a cooldown on every package including transitives. Toolchain entries the npm manager also reports (engines.node, packageManager pnpm) are excluded so their minors stay manual, as in default.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Node dependencies",
+      "automerge": true,
+      "matchDepNames": [
+        "!node",
+        "!pnpm"
+      ]
+    }
+  ]
+}

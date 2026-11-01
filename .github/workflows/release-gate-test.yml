@@ -1,0 +1,31 @@
+name: release-gate-test
+
+# The release gate decides what ships to prod unattended; keep its scenarios
+# green. Runs the fake-gh scenario suite plus shellcheck.
+
+on:
+  pull_request:
+    paths:
+      - 'actions/release-gate/**'
+      - '.github/workflows/release-gate-test.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'actions/release-gate/**'
+      - '.github/workflows/release-gate-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck
+        run: shellcheck actions/release-gate/*.sh
+      - name: Scenarios
+        run: bash actions/release-gate/test.sh

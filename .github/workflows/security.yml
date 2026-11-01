@@ -1,0 +1,121 @@
+name: security (reusable)
+
+# Org security checks, one required check per job.
+#
+#   govulncheck  reachable known vulnerabilities in Go code (skip with go: false)
+#   gitleaks     secrets in the commits this push or PR adds (not full history:
+#                repos that never ran it would fail on day one)
+#   actionlint   workflow bugs, plus shellcheck over every run: block
+#
+# Caller (in the repo's CI workflow):
+#
+#   security:
+#     uses: bluesky-social/.github/.github/workflows/security.yml@v1
+#     permissions:
+#       contents: read
+#
+# Required checks: `security / govulncheck`, `security / gitleaks`,
+# `security / actionlint`. Tool versions are pinned here; bump them in one
+# place.
+
+on:
+  workflow_call:
+    inputs:
+      go:
+        description: 'Run govulncheck (Go module at the repo root).'
+        required: false
+        type: boolean
+        default: true
+      runner-labels:
+        description: 'Extra self-hosted runner labels actionlint should accept, space-separated.'
+        required: false
+        type: string
+        default: ''
+
+permissions: {}
+
+env:
+  GOVULNCHECK: golang.org/x/vuln/cmd/govulncheck@v1.9.0
+  GITLEAKS: github.com/zricethezav/gitleaks/v8@v8.30.1
+  ACTIONLINT: github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+jobs:
+  govulncheck:
+    if: inputs.go
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check reachable vulnerabilities
+        run: go run "${GOVULNCHECK}" ./...
+
+  gitleaks:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Scan new commits for secrets
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT}" == pull_request* && -n "${PR_BASE}" ]]; then
+            range="${PR_BASE}..${PR_HEAD}"
+          elif [[ "${EVENT}" == push && -n "${BEFORE}" && ! "${BEFORE}" =~ ^0+$ ]] \
+            && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            range="${BEFORE}..${SHA}"
+          else
+            range="${SHA}~1..${SHA}"
+          fi
+          echo "scanning ${range}"
+          go run "${GITLEAKS}" git --redact --no-banner --log-opts="${range}" .
+
+  actionlint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Lint workflows
+        env:
+          EXTRA_LABELS: ${{ inputs.runner-labels }}
+        run: |
+          set -euo pipefail
+          command -v shellcheck >/dev/null || sudo apt-get install -y -qq shellcheck
+          # Our self-hosted labels, plus hosted labels newer than actionlint.
+          config="${RUNNER_TEMP}/actionlint.yaml"
+          {
+            echo 'self-hosted-runner:'
+            echo '  labels:'
+            for label in arc kvm cpu3-pop3 ubuntu-26.04 ${EXTRA_LABELS}; do
+              echo "    - ${label}"
+            done
+          } >"${config}"
+          go run "${ACTIONLINT}" -config-file "${config}"

@@ -1,0 +1,132 @@
+name: release-please (reusable)
+
+# Shared release mechanics for repos on the org's release-please pipeline.
+#
+#   1. Cut any merged release (tag + GitHub release) with GITHUB_TOKEN. Tags
+#      pushed by GITHUB_TOKEN do not trigger tag-push workflows, so a repo's
+#      manual-recovery release.yml never double-runs goreleaser.
+#   2. Maintain the standing Release PR with the bsky-release App token. App
+#      pushes DO trigger pull_request CI on the Release PR, which
+#      GITHUB_TOKEN pushes never did.
+#   3. release-gate: when every commit since the last tag came from a merged
+#      Renovate/Dependabot PR (weekdays 09-16 PT), enable auto-merge as the
+#      App. The merge push then triggers the caller's release run, which cuts
+#      the release in step 1 and runs the caller's downstream jobs.
+#
+# Callers keep their own downstream jobs (goreleaser, images, deploy-dispatch)
+# gated on `needs.<job>.outputs.release_created == 'true'`. Callers trigger on
+# push to main, workflow_dispatch, and a weekday-window schedule (so a range
+# merged overnight releases when the window opens), with
+# `permissions: {contents: write, pull-requests: write}`.
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        description: 'release-please component name (release-please-config.json `component`).'
+        required: true
+        type: string
+      config-file:
+        required: false
+        type: string
+        default: release-please-config.json
+      manifest-file:
+        required: false
+        type: string
+        default: .release-please-manifest.json
+    secrets:
+      RELEASE_APP_ID:
+        required: true
+      RELEASE_APP_KEY:
+        required: true
+    outputs:
+      release_created:
+        description: "'true' when this run created a release."
+        value: ${{ jobs.release-please.outputs.release_created }}
+      tag_name:
+        description: 'The created release tag (vX.Y.Z).'
+        value: ${{ jobs.release-please.outputs.tag_name }}
+
+jobs:
+  release-please:
+    # Forks and manually selected branches must not run upstream release policy.
+    if: github.repository_owner == 'bluesky-social' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    # Disarm-then-rearm only holds with one run at a time per repo; don't rely
+    # on callers declaring their own concurrency.
+    concurrency:
+      group: release-please-reusable-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - name: Cut any merged release
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ github.token }}
+          skip-github-pull-request: true
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+
+      # Everything below is best-effort once a release has been cut: a failure
+      # here must not fail this job, or the caller's release jobs (goreleaser,
+      # image, deploy) are skipped and the tag ships with no artifacts.
+      - name: Mint release App token
+        continue-on-error: ${{ steps.release.outputs.release_created == 'true' }}
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+
+      # The gate scripts come from this reusable workflow's own commit
+      # (job.workflow_sha), not a `uses: ...@v1` action ref: repos that require
+      # SHA-pinned actions reject a tag ref, and checking out the exact commit
+      # keeps the gate in lockstep with this file. This repository is public,
+      # so the default job token can read it.
+      - name: Check out the gate scripts
+        continue-on-error: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .release-gate
+          sparse-checkout: actions/release-gate
+          persist-credentials: false
+
+      - name: Disarm before touching the Release PR
+        continue-on-error: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          RELEASE_BRANCH: release-please--branches--main--components--${{ inputs.component }}
+          MANIFEST_FILE: ${{ inputs.manifest-file }}
+          MODE: disarm
+        run: bash .release-gate/actions/release-gate/gate.sh
+
+      - name: Maintain the Release PR
+        continue-on-error: ${{ steps.release.outputs.release_created == 'true' }}
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          skip-github-release: true
+          config-file: ${{ inputs.config-file }}
+          manifest-file: ${{ inputs.manifest-file }}
+
+      - name: Queue unattended dependency release
+        continue-on-error: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          RELEASE_BRANCH: release-please--branches--main--components--${{ inputs.component }}
+          MANIFEST_FILE: ${{ inputs.manifest-file }}
+          MODE: gate
+        run: bash .release-gate/actions/release-gate/gate.sh

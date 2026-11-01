@@ -1,0 +1,17 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Opt-in for uv repos, on top of default. Consumed as local>bluesky-social/.github//renovate/uv#v1. Only for repos where uv enforces the cooldown: [tool.uv] exclude-newer = \"3 days\" and required-version = \">=0.9.17\" in pyproject.toml (older uv silently ignores durations). Direct minors stay manual: uv still runs build backends for sdist-only packages.",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": true,
+    "schedule": ["before 9am on monday"]
+  },
+  "packageRules": [
+    {
+      "description": "Renovate's security PRs only bump declared dependencies; transitive fixes land through the weekly uv.lock refresh. fix: so it releases.",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    }
+  ]
+}

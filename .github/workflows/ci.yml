@@ -1,0 +1,74 @@
+name: ci
+
+# This repository's own checks: actionlint (with shellcheck over run:
+# blocks), shellcheck over every action script, and gitleaks over the full
+# history. release-gate-test.yml runs the gate scenarios. Tool versions match
+# security.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+env:
+  GITLEAKS: github.com/zricethezav/gitleaks/v8@v8.30.1
+  ACTIONLINT: github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Lint workflows
+        run: |
+          set -euo pipefail
+          command -v shellcheck >/dev/null || sudo apt-get install -y -qq shellcheck
+          go run "${ACTIONLINT}"
+
+  shellcheck:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: shellcheck actions/**/*.sh
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          scripts=(actions/**/*.sh)
+          if (( ${#scripts[@]} == 0 )); then
+            echo "::error::no scripts under actions/"
+            exit 1
+          fi
+          shellcheck "${scripts[@]}"
+
+  gitleaks:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.3'
+          cache: false
+      - name: Scan the full history for secrets
+        run: go run "${GITLEAKS}" git --redact --no-banner .

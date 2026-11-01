@@ -1,0 +1,256 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Org dependency policy. Consumed as local>bluesky-social/.github//renovate/default#v1.",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    "docker:pinDigests",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "timezone": "America/Los_Angeles",
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "automerge": false,
+  "automergeType": "pr",
+  "automergeStrategy": "squash",
+  "platformAutomerge": true,
+  "platformCommit": "enabled",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "minimumReleaseAge": "0 days",
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "Patch, digest and pin updates automerge in every ecosystem once required checks pass.",
+      "matchUpdateTypes": [
+        "patch",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Minors automerge only where a green build is enough: Go (immutable proxy, no install scripts, vendored diff), Actions (the new version runs in the PR's own CI), and image tags (pinned by digest). Cargo, npm, pip and the rest stay manual: build scripts and mutable registries make a green build insufficient.",
+      "matchManagers": [
+        "gomod",
+        "github-actions",
+        "dockerfile",
+        "docker-compose"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "automerge": true
+    },
+    {
+      "description": "Runtime dependency bumps are fix(deps): so release-please treats them as releasable in repos on the default changelog builder.",
+      "matchManagers": [
+        "gomod",
+        "dockerfile",
+        "docker-compose",
+        "cargo",
+        "npm",
+        "pep621",
+        "pip_requirements",
+        "poetry",
+        "pipenv",
+        "pip-compile"
+      ],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "CI-only bumps are chore(deps):. Repos on changelog-type github release them anyway; that's harmless.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions",
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Go dependencies"
+    },
+    {
+      "description": "One PR per ecosystem per update type: strict branch protection merges PRs one CI run at a time, so a dozen single-package PRs crawl.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "Node dependencies"
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "groupName": "Node dependencies (minor)"
+    },
+    {
+      "matchManagers": [
+        "pep621",
+        "pip_requirements",
+        "poetry",
+        "pipenv",
+        "pip-compile"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "Python dependencies"
+    },
+    {
+      "matchManagers": [
+        "pep621",
+        "pip_requirements",
+        "poetry",
+        "pipenv",
+        "pip-compile"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "groupName": "Python dependencies (minor)"
+    },
+    {
+      "description": "Renovate runs go mod vendor itself when vendor/modules.txt exists.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "postUpdateOptions": [
+        "gomodTidy"
+      ]
+    },
+    {
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "enabled": true
+    },
+    {
+      "description": "Pseudo-version (commit) bumps of Go modules are noise, not releases.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "This module is hand-bumped in lockstep with its own changes (pseudo-versions, paired commits).",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepNames": [
+        "github.com/bluesky-social/platform"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The go directive is a floor; bump keeps it moving up only.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "golang"
+      ],
+      "rangeStrategy": "bump",
+      "groupName": "Go toolchain"
+    },
+    {
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchDepNames": [
+        "golang"
+      ],
+      "groupName": "Go toolchain"
+    },
+    {
+      "description": "Toolchain minor and major moves (Go, Rust, Node, Python) need a human; patches automerge.",
+      "matchDepNames": [
+        "go",
+        "golang",
+        "rust",
+        "node",
+        "python"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "automerge": false
+    },
+    {
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "Rust dependencies"
+    },
+    {
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "groupName": "Container image digests"
+    },
+    {
+      "description": "Our own reusable workflows and actions stay on the floating v1 tag: a .github fix must reach every repo with one re-point, not a 3-day digest PR per repo.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "bluesky-social/**"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Where a minor needs a human, offer the patch separately so it automerges. Renovate otherwise proposes only the newest version, which can hide a security patch behind a manual minor PR.",
+      "matchDepNames": [
+        "go",
+        "golang",
+        "rust",
+        "node",
+        "python"
+      ],
+      "separateMinorPatch": true
+    },
+    {
+      "matchManagers": [
+        "npm",
+        "cargo",
+        "pep621",
+        "pip_requirements",
+        "poetry",
+        "pipenv",
+        "pip-compile"
+      ],
+      "separateMinorPatch": true
+    }
+  ]
+}
