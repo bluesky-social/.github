@@ -221,6 +221,11 @@ bot_pr c1 1 some-human
 commit_files c1 1 docs/runbook.md
 check_eligible "a human commit touching only excluded paths is neutral"
 
+fixture mixed-docs-and-code
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md main.go
+check_waits "a human commit touching excluded and other paths waits"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
