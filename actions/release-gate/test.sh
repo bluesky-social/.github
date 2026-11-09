@@ -226,6 +226,13 @@ bot_pr c1 1 some-human
 commit_files c1 1 docs/runbook.md main.go
 check_waits "a human commit touching excluded and other paths waits"
 
+# Release-please sees only the new path and ignores this commit, but moving the
+# file removes it from what ships.
+fixture rename-into-excluded
+bot_pr c1 1 some-human
+commit_files c1 1 'cmd/tool.go=>docs/tool.go'
+check_waits "moving a file into an excluded path waits"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"

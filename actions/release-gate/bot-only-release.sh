@@ -88,12 +88,15 @@ bot_reason() {
 
 # neutral <sha>: succeeds when every file the commit changes is under an
 # exclude-paths directory, so release-please ignores it and it cannot change
-# the shipped artifact, whoever wrote it.
+# the shipped artifact, whoever wrote it. A rename's old path counts too:
+# release-please sees only the new one, but moving shipped code into docs/
+# removes it from what ships.
 neutral() {
   local commit
   commit="$(gh api "repos/${GH_REPO}/commits/$1")" || return 1
   jq -e --argjson ex "${excludes}" '
-    all(.files[].filename; . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
+    all(.files[] | .filename, (.previous_filename // empty);
+        . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
   ' <<<"${commit}" >/dev/null
 }
 
