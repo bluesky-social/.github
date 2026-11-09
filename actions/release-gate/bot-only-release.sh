@@ -115,4 +115,11 @@ while read -r sha; do
   fi
 done < <(jq -r '.commits[].sha' <<<"${compare}")
 
+# Release-please opens no Release PR for a neutral-only range; one that exists
+# anyway is not a dependency release.
+if (( bot_count == 0 )); then
+  echo "no dependency-bot commit since v${base_version}"
+  exit 1
+fi
+
 echo "all ${total} commits since v${base_version} came from dependency bots (${bot_count}) or touched only exclude-paths (${neutral_count})"

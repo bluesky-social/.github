@@ -233,6 +233,13 @@ bot_pr c1 1 some-human
 commit_files c1 1 'cmd/tool.go=>docs/tool.go'
 check_waits "moving a file into an excluded path waits"
 
+fixture neutral-only
+for n in 1 2; do
+  bot_pr "c${n}" "${n}" some-human
+  commit_files "c${n}" 1 docs/runbook.md
+done
+check_waits "a range with no dependency-bot commit waits"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
