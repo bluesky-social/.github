@@ -263,6 +263,18 @@ for value in '{"x": "docs"}' '"docs"' '["docs", 1]'; do
   check_waits "exclude-paths of ${value} fails closed"
 done
 
+fixture exclude-top-level
+set_config '{"exclude-paths": ["docs"], "packages": {".": {}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "a top-level exclude-paths applies when the package sets none"
+
+fixture exclude-package-overrides
+set_config '{"exclude-paths": ["docs"], "packages": {".": {"exclude-paths": []}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_waits "a package exclude-paths replaces the top-level one"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
