@@ -282,6 +282,19 @@ echo '[]' >"${FIXTURES}/pulls-c1.json"
 commit_files c1 2 docs/runbook.md
 check_waits "a merge commit is never neutral"
 
+fixture neutral-no-files
+bot_pr c1 1 some-human
+commit_files c1 1
+check_waits "a commit listing no files is not neutral"
+
+# The commit API returns at most 300 files per page, so 300 may be truncated.
+fixture neutral-300-files
+bot_pr c1 1 some-human
+jq -n '{sha: "c1", parents: [{sha: "p"}],
+        files: [range(300) | {filename: "docs/f\(.).md", status: "added"}]}' \
+  >"${FIXTURES}/commit-c1.json"
+check_waits "a commit listing 300 files is not neutral"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"

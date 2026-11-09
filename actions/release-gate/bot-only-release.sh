@@ -95,12 +95,14 @@ bot_reason() {
 # the shipped artifact, whoever wrote it. A rename's old path counts too:
 # release-please sees only the new one, but moving shipped code into docs/
 # removes it from what ships. A merge commit lists only its diff against one
-# parent, so it is never neutral.
+# parent, so it is never neutral. The API returns at most 300 files per page,
+# so a 300-file list may be truncated.
 neutral() {
   local commit
   commit="$(gh api "repos/${GH_REPO}/commits/$1")" || return 1
   jq -e --argjson ex "${excludes}" '
     (.parents | length) == 1
+    and (.files | length) > 0 and (.files | length) < 300
     and all(.files[] | .filename, (.previous_filename // empty);
             . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
   ' <<<"${commit}" >/dev/null
