@@ -62,6 +62,8 @@ config_file="${CONFIG_FILE:-release-please-config.json}"
 excludes="$(gh api "repos/${GH_REPO}/contents/${config_file}?ref=${main_sha}" \
   --jq '.content | gsub("\\s"; "") | @base64d' |
   jq -c '.packages["."]["exclude-paths"] // .["exclude-paths"] // []
+         | if type == "array" and all(.[]; type == "string") then .
+           else error("exclude-paths must be an array of strings") end
          | map(sub("/$"; "") | sub("^/"; ""))')"
 
 # bot_reason <sha>: prints why the commit is not a dependency bot's, or

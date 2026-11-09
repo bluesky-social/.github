@@ -255,6 +255,14 @@ bot_pr c1 1 some-human
 commit_files c1 1 docs/runbook.md
 check_eligible "exclude-paths entries are normalized like release-please's"
 
+for value in '{"x": "docs"}' '"docs"' '["docs", 1]'; do
+  fixture "exclude-not-string-array"
+  set_config "{\"packages\": {\".\": {\"exclude-paths\": ${value}}}}"
+  bot_pr c1 1 some-human
+  commit_files c1 1 docs/runbook.md
+  check_waits "exclude-paths of ${value} fails closed"
+done
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
