@@ -44,6 +44,17 @@ The org release pipeline for single-package release-please repositories.
    Held CI runs are approved only when they come from this repository's own
    release branch at the release head.
 
+   A commit is neutral, neither bot nor human, when every file it changes sits
+   under a directory in the release-please config's `exclude-paths`.
+   Release-please ignores such commits, so a docs- or CI-only change neither
+   cuts a release nor blocks the next dependency release. A range still needs
+   at least one bot commit. Entries are directories only: release-please
+   matches a file against `<entry>/`, so `*.md` or `README.md` excludes
+   nothing. Merge commits, renames out of a non-excluded path, and commits
+   that change the release-please config are never neutral. Excluding
+   `.github` means a changed release or publish workflow first runs in an
+   unattended release.
+
 The gate scripts are plain shell, checked out from this workflow's own commit,
 with scenario tests in `actions/release-gate/test.sh`. Outputs:
 `release_created` and `tag_name`, for the caller's own build and deploy jobs.

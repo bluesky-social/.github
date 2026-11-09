@@ -128,5 +128,6 @@ jobs:
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
           RELEASE_BRANCH: release-please--branches--main--components--${{ inputs.component }}
           MANIFEST_FILE: ${{ inputs.manifest-file }}
+          CONFIG_FILE: ${{ inputs.config-file }}
           MODE: gate
         run: bash .release-gate/actions/release-gate/gate.sh

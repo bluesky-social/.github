@@ -60,9 +60,11 @@ case "$1 $2" in
           | if $all then .[] else .[0] end' "${FIXTURES}/runs-all.json"
         ;;
       */git/ref/heads/main) serve "${FIXTURES}/main-ref.json" ;;
+      */contents/*release-please-config.json*) serve "${FIXTURES}/config-contents.json" ;;
       */contents/*) serve "${FIXTURES}/manifest-contents.json" ;;
       */compare/*...*) serve "${FIXTURES}/compare.json" ;;
       */commits/*/pulls) serve "${FIXTURES}/pulls-$(basename "$(dirname "${path}")").json" ;;
+      */commits/*) serve "${FIXTURES}/commit-$(basename "${path}").json" ;;
       */pulls/*/commits*)
         n="${path#*/pulls/}"
         serve "${FIXTURES}/prcommits-${n%%/*}.json"
@@ -108,6 +110,29 @@ bot_commits() {
   done
   printf '%s\n' "${out}" >"${FIXTURES}/prcommits-${n}.json"
 }
+# commit_files <sha> <parent-count> <file>...: what GET commits/<sha> serves.
+# A file given as old=>new is a rename.
+commit_files() {
+  local sha="$1" parents="$2"; shift 2
+  local files="[]" f
+  for f in "$@"; do
+    if [[ "${f}" == *"=>"* ]]; then
+      files="$(jq --arg o "${f%%=>*}" --arg n "${f#*=>}" \
+        '. + [{filename: $n, previous_filename: $o, status: "renamed"}]' <<<"${files}")"
+    else
+      files="$(jq --arg n "${f}" '. + [{filename: $n, status: "modified"}]' <<<"${files}")"
+    fi
+  done
+  jq -n --arg sha "${sha}" --argjson p "${parents}" --argjson files "${files}" \
+    '{sha: $sha, parents: [range($p) | {sha: "parent\(.)"}], files: $files}' \
+    >"${FIXTURES}/commit-${sha}.json"
+}
+# set_config <json>: the release-please config served at main, base64 wrapped
+# at 60 columns the way the contents API returns it.
+set_config() {
+  jq -n --arg c "$(printf '%s' "$1" | base64 | tr -d '\n' | fold -w 60)" '{content: $c}' \
+    >"${FIXTURES}/config-contents.json"
+}
 
 # fixture <name>: reset fixtures to an eligible two-commit Renovate range.
 fixture() {
@@ -115,6 +140,7 @@ fixture() {
   mkdir -p "${FIXTURES}"
   : >"${FIXTURES}/calls"
   export FAKE_DOW=2 FAKE_HOUR=10 GITHUB_EVENT_NAME=schedule
+  unset CONFIG_FILE
   cat >"${FIXTURES}/pr.json" <<'EOF'
 {"number": 42, "title": "chore(main): release 1.2.4",
  "author": {"is_bot": true, "login": "app/bsky-release-bot"},
@@ -135,7 +161,9 @@ EOF
   for n in 1 2; do
     bot_pr "c${n}" "${n}" "renovate[bot]"
     bot_commits "${n}" "renovate[bot]" true
+    commit_files "c${n}" 1 main.go
   done
+  set_config '{"packages": {".": {"exclude-paths": ["docs", ".github"]}}}'
   echo '[]' >"${FIXTURES}/runs-all.json"
 }
 
@@ -188,6 +216,93 @@ check_waits "a human-merged commit in range waits for a human"
 fixture direct-push
 echo '[]' >"${FIXTURES}/pulls-c1.json"
 check_waits "a direct push (no associated PR) waits for a human"
+
+fixture neutral-docs
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "a human commit touching only excluded paths is neutral"
+
+fixture mixed-docs-and-code
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md main.go
+check_waits "a human commit touching excluded and other paths waits"
+
+# Release-please sees only the new path and ignores this commit, but moving the
+# file removes it from what ships.
+fixture rename-into-excluded
+bot_pr c1 1 some-human
+commit_files c1 1 'cmd/tool.go=>docs/tool.go'
+check_waits "moving a file into an excluded path waits"
+
+fixture neutral-only
+for n in 1 2; do
+  bot_pr "c${n}" "${n}" some-human
+  commit_files "c${n}" 1 docs/runbook.md
+done
+check_waits "a range with no dependency-bot commit waits"
+
+# Release-please excludes everything for ".", so the gate must never read it
+# as "every path is neutral".
+for entry in . ''; do
+  fixture "root-exclude-${entry:-empty}"
+  set_config "$(jq -cn --arg e "${entry}" '{packages: {".": {"exclude-paths": [$e]}}}')"
+  bot_pr c1 1 some-human
+  check_waits "an exclude-paths entry of '${entry}' neutralizes nothing"
+done
+
+fixture exclude-trailing-slash
+set_config '{"packages": {".": {"exclude-paths": ["/docs/"]}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "exclude-paths entries are normalized like release-please's"
+
+for value in '{"x": "docs"}' '"docs"' '["docs", 1]'; do
+  fixture "exclude-not-string-array"
+  set_config "{\"packages\": {\".\": {\"exclude-paths\": ${value}}}}"
+  bot_pr c1 1 some-human
+  commit_files c1 1 docs/runbook.md
+  check_waits "exclude-paths of ${value} fails closed"
+done
+
+fixture exclude-top-level
+set_config '{"exclude-paths": ["docs"], "packages": {".": {}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "a top-level exclude-paths applies when the package sets none"
+
+fixture exclude-package-overrides
+set_config '{"exclude-paths": ["docs"], "packages": {".": {"exclude-paths": []}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_waits "a package exclude-paths replaces the top-level one"
+
+# A merge commit's files are its diff against one parent; whatever the other
+# parent brings in is not listed.
+fixture neutral-merge-commit
+echo '[]' >"${FIXTURES}/pulls-c1.json"
+commit_files c1 2 docs/runbook.md
+check_waits "a merge commit is never neutral"
+
+fixture neutral-no-files
+bot_pr c1 1 some-human
+commit_files c1 1
+check_waits "a commit listing no files is not neutral"
+
+# The commit API returns at most 300 files per page, so 300 may be truncated.
+fixture neutral-300-files
+bot_pr c1 1 some-human
+jq -n '{sha: "c1", parents: [{sha: "p"}],
+        files: [range(300) | {filename: "docs/f\(.).md", status: "added"}]}' \
+  >"${FIXTURES}/commit-c1.json"
+check_waits "a commit listing 300 files is not neutral"
+
+# The gate reads exclude-paths at main, so a commit that widens the list must
+# not be judged by the list it introduces.
+fixture neutral-config-change
+export CONFIG_FILE=.github/release-please-config.json
+bot_pr c1 1 some-human
+commit_files c1 1 .github/release-please-config.json
+check_waits "a commit changing the release-please config is never neutral"
 
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev

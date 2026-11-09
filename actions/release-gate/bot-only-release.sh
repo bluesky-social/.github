@@ -10,14 +10,17 @@
 # release branch, touches only the manifest and changelog, no release:manual
 # label) AND every commit between v<base-version> and main, merge commits
 # included, arrived through a merged Renovate or Dependabot PR made only of
-# that bot's own GitHub-verified commits. Provenance comes from GitHub's
-# commit->PR association and commit signatures, not git author metadata,
-# which anyone can set. Any human change in the range means a human merges
-# the release.
+# that bot's own GitHub-verified commits, or is neutral: it changes only files
+# under the release-please config's exclude-paths directories, which
+# release-please ignores and which cannot change what ships. Provenance comes
+# from GitHub's commit->PR association and commit signatures, not git author
+# metadata, which anyone can set. Any other human change in the range means a
+# human merges the release.
 #
 # Requires GH_TOKEN, GH_REPO, RELEASE_BRANCH, MANIFEST_FILE, and
 # RELEASE_AUTHORS (space-separated `gh` author logins, e.g.
-# "app/github-actions app/bsky-release-bot").
+# "app/github-actions app/bsky-release-bot"). CONFIG_FILE defaults to
+# release-please-config.json.
 set -euo pipefail
 
 pr_json="$1"
@@ -51,15 +54,28 @@ fi
 
 bots='["renovate[bot]", "dependabot[bot]"]'
 
-# Merge commits are checked too: their tree can carry changes no parent has,
-# and their associated PR is whatever they merged, so a human merge fails here.
-while read -r sha; do
+# The release-please exclude-paths at main, with the same precedence
+# release-please uses (package value, else top-level default). Entries are
+# directory prefixes: release-please strips one leading and one trailing "/"
+# and matches a file against "<entry>/".
+config_file="${CONFIG_FILE:-release-please-config.json}"
+excludes="$(gh api "repos/${GH_REPO}/contents/${config_file}?ref=${main_sha}" \
+  --jq '.content | gsub("\\s"; "") | @base64d' |
+  jq -c '.packages["."]["exclude-paths"] // .["exclude-paths"] // []
+         | if type == "array" and all(.[]; type == "string") then .
+           else error("exclude-paths must be an array of strings") end
+         | map(sub("/$"; "") | sub("^/"; ""))')"
+
+# bot_reason <sha>: prints why the commit is not a dependency bot's, or
+# nothing when it is.
+bot_reason() {
+  local sha="$1" pr_number
   pr_number="$(gh api "repos/${GH_REPO}/commits/${sha}/pulls" | jq -r --argjson bots "${bots}" '
     [.[] | select((.user.login as $u | $bots | index($u))
                   and .merged_at != null and .base.ref == "main")][0].number // empty')"
   if [[ -z "${pr_number}" ]]; then
     echo "commit ${sha} did not arrive through a merged Renovate or Dependabot PR"
-    exit 1
+    return
   fi
   # A bot opening the PR is not enough: a human can push a fix onto the bot's
   # branch before it is squash-merged. Every commit in the PR must be the
@@ -71,8 +87,50 @@ while read -r sha; do
       and .commit.verification.verified == true)
   ' >/dev/null; then
     echo "PR #${pr_number} (commit ${sha}) contains commits that are not the bot's own verified commits"
+  fi
+}
+
+# neutral <sha>: succeeds when every file the commit changes is under an
+# exclude-paths directory, so release-please ignores it and it cannot change
+# the shipped artifact, whoever wrote it. A rename's old path counts too:
+# release-please sees only the new one, but moving shipped code into docs/
+# removes it from what ships. A merge commit lists only its diff against one
+# parent, so it is never neutral. The API returns at most 300 files per page,
+# so a 300-file list may be truncated. A commit that changes the config itself
+# is never neutral: the list it introduces must not judge it or the commits
+# before it.
+neutral() {
+  local commit
+  commit="$(gh api "repos/${GH_REPO}/commits/$1")" || return 1
+  jq -e --argjson ex "${excludes}" --arg config "${config_file#./}" '
+    (.parents | length) == 1
+    and (.files | length) > 0 and (.files | length) < 300
+    and all(.files[] | .filename, (.previous_filename // empty);
+            . != $config
+            and (. as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/"))))
+  ' <<<"${commit}" >/dev/null
+}
+
+# Merge commits are checked too: their tree can carry changes no parent has,
+# and their associated PR is whatever they merged, so a human merge fails here.
+bot_count=0 neutral_count=0
+while read -r sha; do
+  reason="$(bot_reason "${sha}")"
+  if [[ -z "${reason}" ]]; then
+    bot_count=$((bot_count + 1))
+  elif neutral "${sha}"; then
+    neutral_count=$((neutral_count + 1))
+  else
+    echo "${reason}"
     exit 1
   fi
 done < <(jq -r '.commits[].sha' <<<"${compare}")
 
-echo "all ${total} commits since v${base_version} came from dependency bots"
+# Release-please opens no Release PR for a neutral-only range; one that exists
+# anyway is not a dependency release.
+if (( bot_count == 0 )); then
+  echo "no dependency-bot commit since v${base_version}"
+  exit 1
+fi
+
+echo "all ${total} commits since v${base_version} came from dependency bots (${bot_count}) or touched only exclude-paths (${neutral_count})"
