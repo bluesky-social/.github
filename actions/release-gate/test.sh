@@ -216,6 +216,11 @@ fixture direct-push
 echo '[]' >"${FIXTURES}/pulls-c1.json"
 check_waits "a direct push (no associated PR) waits for a human"
 
+fixture neutral-docs
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "a human commit touching only excluded paths is neutral"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
