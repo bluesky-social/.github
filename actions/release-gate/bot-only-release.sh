@@ -56,11 +56,13 @@ bots='["renovate[bot]", "dependabot[bot]"]'
 
 # The release-please exclude-paths at main, with the same precedence
 # release-please uses (package value, else top-level default). Entries are
-# directory prefixes: release-please matches a file against "<entry>/".
+# directory prefixes: release-please strips one leading and one trailing "/"
+# and matches a file against "<entry>/".
 config_file="${CONFIG_FILE:-release-please-config.json}"
 excludes="$(gh api "repos/${GH_REPO}/contents/${config_file}?ref=${main_sha}" \
   --jq '.content | gsub("\\s"; "") | @base64d' |
-  jq -c '.packages["."]["exclude-paths"] // .["exclude-paths"] // []')"
+  jq -c '.packages["."]["exclude-paths"] // .["exclude-paths"] // []
+         | map(sub("/$"; "") | sub("^/"; ""))')"
 
 # bot_reason <sha>: prints why the commit is not a dependency bot's, or
 # nothing when it is.

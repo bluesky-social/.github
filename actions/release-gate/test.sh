@@ -249,6 +249,12 @@ for entry in . ''; do
   check_waits "an exclude-paths entry of '${entry}' neutralizes nothing"
 done
 
+fixture exclude-trailing-slash
+set_config '{"packages": {".": {"exclude-paths": ["/docs/"]}}}'
+bot_pr c1 1 some-human
+commit_files c1 1 docs/runbook.md
+check_eligible "exclude-paths entries are normalized like release-please's"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
