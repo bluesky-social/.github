@@ -96,15 +96,18 @@ bot_reason() {
 # release-please sees only the new one, but moving shipped code into docs/
 # removes it from what ships. A merge commit lists only its diff against one
 # parent, so it is never neutral. The API returns at most 300 files per page,
-# so a 300-file list may be truncated.
+# so a 300-file list may be truncated. A commit that changes the config itself
+# is never neutral: the list it introduces must not judge it or the commits
+# before it.
 neutral() {
   local commit
   commit="$(gh api "repos/${GH_REPO}/commits/$1")" || return 1
-  jq -e --argjson ex "${excludes}" '
+  jq -e --argjson ex "${excludes}" --arg config "${config_file#./}" '
     (.parents | length) == 1
     and (.files | length) > 0 and (.files | length) < 300
     and all(.files[] | .filename, (.previous_filename // empty);
-            . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
+            . != $config
+            and (. as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/"))))
   ' <<<"${commit}" >/dev/null
 }
 

@@ -60,7 +60,7 @@ case "$1 $2" in
           | if $all then .[] else .[0] end' "${FIXTURES}/runs-all.json"
         ;;
       */git/ref/heads/main) serve "${FIXTURES}/main-ref.json" ;;
-      */contents/release-please-config.json*) serve "${FIXTURES}/config-contents.json" ;;
+      */contents/*release-please-config.json*) serve "${FIXTURES}/config-contents.json" ;;
       */contents/*) serve "${FIXTURES}/manifest-contents.json" ;;
       */compare/*...*) serve "${FIXTURES}/compare.json" ;;
       */commits/*/pulls) serve "${FIXTURES}/pulls-$(basename "$(dirname "${path}")").json" ;;
@@ -140,6 +140,7 @@ fixture() {
   mkdir -p "${FIXTURES}"
   : >"${FIXTURES}/calls"
   export FAKE_DOW=2 FAKE_HOUR=10 GITHUB_EVENT_NAME=schedule
+  unset CONFIG_FILE
   cat >"${FIXTURES}/pr.json" <<'EOF'
 {"number": 42, "title": "chore(main): release 1.2.4",
  "author": {"is_bot": true, "login": "app/bsky-release-bot"},
@@ -294,6 +295,14 @@ jq -n '{sha: "c1", parents: [{sha: "p"}],
         files: [range(300) | {filename: "docs/f\(.).md", status: "added"}]}' \
   >"${FIXTURES}/commit-c1.json"
 check_waits "a commit listing 300 files is not neutral"
+
+# The gate reads exclude-paths at main, so a commit that widens the list must
+# not be judged by the list it introduces.
+fixture neutral-config-change
+export CONFIG_FILE=.github/release-please-config.json
+bot_pr c1 1 some-human
+commit_files c1 1 .github/release-please-config.json
+check_waits "a commit changing the release-please config is never neutral"
 
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
