@@ -60,9 +60,11 @@ case "$1 $2" in
           | if $all then .[] else .[0] end' "${FIXTURES}/runs-all.json"
         ;;
       */git/ref/heads/main) serve "${FIXTURES}/main-ref.json" ;;
+      */contents/release-please-config.json*) serve "${FIXTURES}/config-contents.json" ;;
       */contents/*) serve "${FIXTURES}/manifest-contents.json" ;;
       */compare/*...*) serve "${FIXTURES}/compare.json" ;;
       */commits/*/pulls) serve "${FIXTURES}/pulls-$(basename "$(dirname "${path}")").json" ;;
+      */commits/*) serve "${FIXTURES}/commit-$(basename "${path}").json" ;;
       */pulls/*/commits*)
         n="${path#*/pulls/}"
         serve "${FIXTURES}/prcommits-${n%%/*}.json"
@@ -108,6 +110,29 @@ bot_commits() {
   done
   printf '%s\n' "${out}" >"${FIXTURES}/prcommits-${n}.json"
 }
+# commit_files <sha> <parent-count> <file>...: what GET commits/<sha> serves.
+# A file given as old=>new is a rename.
+commit_files() {
+  local sha="$1" parents="$2"; shift 2
+  local files="[]" f
+  for f in "$@"; do
+    if [[ "${f}" == *"=>"* ]]; then
+      files="$(jq --arg o "${f%%=>*}" --arg n "${f#*=>}" \
+        '. + [{filename: $n, previous_filename: $o, status: "renamed"}]' <<<"${files}")"
+    else
+      files="$(jq --arg n "${f}" '. + [{filename: $n, status: "modified"}]' <<<"${files}")"
+    fi
+  done
+  jq -n --arg sha "${sha}" --argjson p "${parents}" --argjson files "${files}" \
+    '{sha: $sha, parents: [range($p) | {sha: "parent\(.)"}], files: $files}' \
+    >"${FIXTURES}/commit-${sha}.json"
+}
+# set_config <json>: the release-please config served at main, base64 wrapped
+# at 60 columns the way the contents API returns it.
+set_config() {
+  jq -n --arg c "$(printf '%s' "$1" | base64 | tr -d '\n' | fold -w 60)" '{content: $c}' \
+    >"${FIXTURES}/config-contents.json"
+}
 
 # fixture <name>: reset fixtures to an eligible two-commit Renovate range.
 fixture() {
@@ -135,7 +160,9 @@ EOF
   for n in 1 2; do
     bot_pr "c${n}" "${n}" "renovate[bot]"
     bot_commits "${n}" "renovate[bot]" true
+    commit_files "c${n}" 1 main.go
   done
+  set_config '{"packages": {".": {"exclude-paths": ["docs", ".github"]}}}'
   echo '[]' >"${FIXTURES}/runs-all.json"
 }
 
