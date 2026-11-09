@@ -275,6 +275,13 @@ bot_pr c1 1 some-human
 commit_files c1 1 docs/runbook.md
 check_waits "a package exclude-paths replaces the top-level one"
 
+# A merge commit's files are its diff against one parent; whatever the other
+# parent brings in is not listed.
+fixture neutral-merge-commit
+echo '[]' >"${FIXTURES}/pulls-c1.json"
+commit_files c1 2 docs/runbook.md
+check_waits "a merge commit is never neutral"
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"

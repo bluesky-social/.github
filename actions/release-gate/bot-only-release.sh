@@ -94,13 +94,15 @@ bot_reason() {
 # exclude-paths directory, so release-please ignores it and it cannot change
 # the shipped artifact, whoever wrote it. A rename's old path counts too:
 # release-please sees only the new one, but moving shipped code into docs/
-# removes it from what ships.
+# removes it from what ships. A merge commit lists only its diff against one
+# parent, so it is never neutral.
 neutral() {
   local commit
   commit="$(gh api "repos/${GH_REPO}/commits/$1")" || return 1
   jq -e --argjson ex "${excludes}" '
-    all(.files[] | .filename, (.previous_filename // empty);
-        . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
+    (.parents | length) == 1
+    and all(.files[] | .filename, (.previous_filename // empty);
+            . as $f | $ex | any(.[]; . as $d | $f | startswith($d + "/")))
   ' <<<"${commit}" >/dev/null
 }
 
