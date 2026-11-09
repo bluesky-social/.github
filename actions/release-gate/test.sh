@@ -240,6 +240,15 @@ for n in 1 2; do
 done
 check_waits "a range with no dependency-bot commit waits"
 
+# Release-please excludes everything for ".", so the gate must never read it
+# as "every path is neutral".
+for entry in . ''; do
+  fixture "root-exclude-${entry:-empty}"
+  set_config "$(jq -cn --arg e "${entry}" '{packages: {".": {"exclude-paths": [$e]}}}')"
+  bot_pr c1 1 some-human
+  check_waits "an exclude-paths entry of '${entry}' neutralizes nothing"
+done
+
 fixture bot-pr-other-base
 bot_pr c1 1 "renovate[bot]" dev
 check_waits "a bot PR merged into another base does not count"
