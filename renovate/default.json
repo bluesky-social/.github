@@ -145,6 +145,20 @@
       "enabled": true
     },
     {
+      "description": "A major bump of an indirect Go module past v1 is a new module path (/v2, /v3, ...). Only the dependency that imports it can migrate, so the go.mod edit either fails go mod tidy or adds an unused requirement. v0 to v1 keeps the path, so it stays enabled.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchDepTypes": [
+        "indirect"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "matchCurrentVersion": "!/^v?0\\./",
+      "enabled": false
+    },
+    {
       "description": "Pseudo-version (commit) bumps of Go modules are noise, not releases.",
       "matchManagers": [
         "gomod"
