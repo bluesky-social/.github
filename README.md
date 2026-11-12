@@ -154,7 +154,10 @@ Pass the key as the named secret shown. Do not use `secrets: inherit`.
   updates automerge everywhere; minors automerge for Go modules, GitHub
   Actions, and container images; security updates skip the 3-day minimum
   release age. Runtime dependency bumps are `fix(deps):` so release-please
-  releases them. Requires branch protection with required checks.
+  releases them. Indirect Go modules get no major updates past v1 (except
+  `+incompatible` ones), since a new major is a new module path that only the
+  importing dependency can adopt.
+  Requires branch protection with required checks.
 - `renovate/pnpm.json`: adds npm minor automerge and a weekly lock file
   refresh for repositories where pnpm 11 or later enforces its own release-age
   cooldown.
