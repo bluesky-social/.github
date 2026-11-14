@@ -127,12 +127,13 @@
       "groupName": "Python dependencies (minor)"
     },
     {
-      "description": "Renovate runs go mod vendor itself when vendor/modules.txt exists.",
+      "description": "Renovate runs go mod vendor itself when vendor/modules.txt exists. gomodUpdateImportPaths makes a major update to a new module path (/v2, /v3, ...) rewrite the repository's imports and run go mod tidy, so the PR is a working migration instead of a go.mod edit that fails tidy.",
       "matchManagers": [
         "gomod"
       ],
       "postUpdateOptions": [
-        "gomodTidy"
+        "gomodTidy",
+        "gomodUpdateImportPaths"
       ]
     },
     {

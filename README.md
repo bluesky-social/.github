@@ -156,7 +156,8 @@ Pass the key as the named secret shown. Do not use `secrets: inherit`.
   release age. Runtime dependency bumps are `fix(deps):` so release-please
   releases them. Indirect Go modules get no major updates to v2 or later
   (except `+incompatible` ones), since a new major is a new module path that only
-  the importing dependency can adopt.
+  the importing dependency can adopt. A major update of a direct Go module
+  rewrites the repository's imports to the new path.
   Requires branch protection with required checks.
 - `renovate/pnpm.json`: adds npm minor automerge and a weekly lock file
   refresh for repositories where pnpm 11 or later enforces its own release-age
