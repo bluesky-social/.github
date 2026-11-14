@@ -180,12 +180,13 @@
       "enabled": false
     },
     {
-      "description": "The go directive is a floor; bump keeps it moving up only.",
+      "description": "The go directive is a floor; bump keeps it moving up only. The toolchain directive joins the same group so it moves with the go directive and the golang build image.",
       "matchManagers": [
         "gomod"
       ],
       "matchDepTypes": [
-        "golang"
+        "golang",
+        "toolchain"
       ],
       "rangeStrategy": "bump",
       "groupName": "Go toolchain"
@@ -213,6 +214,21 @@
         "major"
       ],
       "automerge": false
+    },
+    {
+      "description": "Go issues patch releases (1.x.y) only for critical problems, mostly security fixes, so they skip the minimum release age. Renovate's vulnerability alerts miss Go standard library advisories unless go.mod has a toolchain line, and always miss them for the golang container image.",
+      "matchDatasources": [
+        "golang-version",
+        "docker"
+      ],
+      "matchDepNames": [
+        "go",
+        "golang"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "minimumReleaseAge": "0 days"
     },
     {
       "matchManagers": [
