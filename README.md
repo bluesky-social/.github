@@ -152,7 +152,8 @@ Pass the key as the named secret shown. Do not use `secrets: inherit`.
 
 - `renovate/default.json`: the org dependency policy. Patch, digest, and pin
   updates automerge everywhere; minors automerge for Go modules, GitHub
-  Actions, and container images; security updates skip the 3-day minimum
+  Actions, and container images; security updates and Go toolchain patch
+  releases (which Go issues only for critical fixes) skip the 3-day minimum
   release age. Runtime dependency bumps are `fix(deps):` so release-please
   releases them. Indirect Go modules get no major updates to v2 or later
   (except `+incompatible` ones), since a new major is a new module path that only
